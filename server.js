@@ -1,20 +1,40 @@
-const express= require('express');
+// server.js
 
+// 1. Import necessary modules
+const express = require('express');
+const mongoose = require('mongoose');
+const mainRoutes = require('./routes/mainroutes'); // Assuming this path is correct
 
-const mainroutes=require('./routes/mainroutes');
+// 2. Initialize Express app and define port
+const app = express();
+const port = 3000;
 
-const app=express();
+// 3. Define Database Connection URI
+const dbURI = 'mongodb://127.0.0.1:27017/recipeHubDb';
 
+// --- DATABASE CONNECTION ---
+// Attempt to connect to MongoDB
+mongoose.connect(dbURI)
+  .then((result) => {
+    // This block runs ONLY if the connection is successful
+    console.log('Connected successfully to MongoDB database!');
 
-const port=3000;
+    // It's best practice to start listening for HTTP requests *after*
+    // the database connection is established.
+    app.listen(port, () => {
+      console.log(`Server running and listening on http://localhost:${port}`);
+      // Note: Changed your log message slightly for standard format
+    });
 
-app.use('/',mainroutes);
+    app.use('/', mainRoutes);
 
+  })
+  .catch((err) => {
+    // This block runs ONLY if the connection fails
+    console.error('Database connection error:', err);
+    // Consider exiting if the DB is critical for startup:
+    // process.exit(1);
+  });
 
-
-
-app.listen(port,()=>{
-    console.log('the server is running and listening on  PORT=3000');
-
-
-});
+// --- NO app.listen() here anymore ---
+// --- NO app.use() here anymore (moved inside .then for clarity) ---
