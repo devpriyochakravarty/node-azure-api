@@ -4,10 +4,13 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const mainRoutes = require('./routes/mainroutes'); // Assuming this path is correct
+const userRoutes = require('./routes/userRoutes')
 
 // 2. Initialize Express app and define port
 const app = express();
 const port = 3000;
+
+app.use(express.json());
 
 // 3. Define Database Connection URI
 const dbURI = 'mongodb://127.0.0.1:27017/recipeHubDb';
@@ -27,6 +30,7 @@ mongoose.connect(dbURI)
     });
 
     app.use('/', mainRoutes);
+    app.use('/api/user',userRoutes);
 
   })
   .catch((err) => {
