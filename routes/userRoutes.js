@@ -2,6 +2,9 @@
 const express = require('express');
 const router = express.Router();
 const User = require('../models/user'); // Import the User model
+const bcrypt =require('bcryptjs');
+const jwt= require('jsonwebtoken');
+const JWT_SECRET= 'dev1441';
 
 // --- CRUD Routes ---
 
@@ -9,18 +12,21 @@ const User = require('../models/user'); // Import the User model
 // Path is '/' because '/api/users' is handled by app.use() in server.js
 router.post('/', async (req, res) => {
   console.log('Received request to create user. Body:', req.body); // Debug log
-
-  // Basic check if body exists
-  if (!req.body) {
-      return res.status(400).json({ message: "Request body is missing." });
+  if (!req.body || !req.body.username || !req.body.email || !req.body.password) {
+      return res.status(400).json({ message: "Username, email, and password are required." });
   }
 
   try {
+    // --- HASH THE PASSWORD ---
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(req.body.password, salt);
+    // --- END HASHING ---
+ 
     // Create a new user instance using the data from the request body
     const newUser = new User({
       username: req.body.username,
       email: req.body.email,
-      password: req.body.password // Plain text for now - NEEDS HASHING LATER
+      password: hashedPassword // Plain text for now - NEEDS HASHING LATER
     });
 
     // Save the new user to the database
@@ -201,8 +207,69 @@ router.delete('/:id', async (req, res) => {
       res.status(500).json({ message: "Server error deleting user." });
   }
 });
+// routes/userRoutes.js
+// ... require, JWT_SECRET ...
+
+// --- AUTH ROUTES ---
+
+// POST /api/user/login - User Login
+router.post('/login', async (req, res) => {
+    console.log('Login attempt:', req.body.email); // Log attempt, avoid logging password
+
+    // Check if email and password are provided
+    if (!req.body || !req.body.email || !req.body.password) {
+        return res.status(400).json({ message: "Email and password are required." });
+    }
+
+    const { email, password } = req.body; // Destructure for convenience
+
+    try {
+        // 1. Find the user by email
+        const user = await User.findOne({ email: email.toLowerCase() }); // Use findOne, ensure email matches case used in schema
+        if (!user) {
+            // User not found (Generic message for security - don't reveal if email exists)
+            return res.status(401).json({ message: 'Invalid credentials.' }); // 401 Unauthorized
+        }
+
+        // 2. Compare the provided password with the stored hash
+        const isMatch = await bcrypt.compare(password, user.password);
+        if (!isMatch) {
+            // Password doesn't match (Generic message for security)
+            return res.status(401).json({ message: 'Invalid credentials.' });
+        }
+
+        // 3. User is authenticated - Generate JWT
+        const payload = {
+            user: {
+                id: user.id, // or user._id.toString()
+                username: user.username,
+                email: user.email
+                // Add other relevant non-sensitive info if needed (e.g., role)
+            }
+        };
+
+        jwt.sign(
+            payload,
+            JWT_SECRET,
+            { expiresIn: '1h' }, // Token expires in 1 hour (e.g., '1d', '7d')
+            (err, token) => {
+                if (err) throw err; // Handle signing error
+                res.status(200).json({
+                    message: "Login successful!",
+                    token: token // Send the token to the client
+                });
+            }
+        );
+
+    } catch (error) {
+        console.error("Error during login:", error.message);
+        res.status(500).json({ message: "Server error during login." });
+    }
+});
 
 
+// --- CRUD Routes ---
+// POST / - Create User (already implemented)
+// ... other CRUD routes ...
 
-// Export the router
 module.exports = router;
