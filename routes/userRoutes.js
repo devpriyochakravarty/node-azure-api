@@ -4,18 +4,34 @@ const router = express.Router();
 const User = require('../models/user'); // Import the User model
 const bcrypt =require('bcryptjs');
 const jwt= require('jsonwebtoken');
+const { protect } = require('../Middleware/authMiddleware');
 const JWT_SECRET= 'dev1441';
+const {body,validationResult}=require('express-validator');
 
 // --- CRUD Routes ---
 
 // POST /api/users - Create a new user
 // Path is '/' because '/api/users' is handled by app.use() in server.js
-router.post('/', async (req, res) => {
-  console.log('Received request to create user. Body:', req.body); // Debug log
-  if (!req.body || !req.body.username || !req.body.email || !req.body.password) {
+router.post('/', 
+    [
+        body('username','username is required').not().isEmpty().trim().escape(),
+        body('username','username must be 3 characters').isLength({min:3}),
+        body('email','please include the valid email').isEmail().normalizeEmail(),
+        body('password','password is required').not().isEmpty(),
+        body('password','password must be atleast 6 characters').isLength({min:6})
+
+    ],
+    async (req, res) => {
+ 
+  console.log('receive request to create user.body:',req.body);
+  const errors=validationResult(req);
+  if(!errors.isEmpty()){
+    return res.status(400).json({errors:errors.array()});
+  }
+ /*  if (!req.body || !req.body.username || !req.body.email || !req.body.password) {
       return res.status(400).json({ message: "Username, email, and password are required." });
   }
-
+ */
   try {
     // --- HASH THE PASSWORD ---
     const salt = await bcrypt.genSalt(10);
@@ -24,7 +40,7 @@ router.post('/', async (req, res) => {
  
     // Create a new user instance using the data from the request body
     const newUser = new User({
-      username: req.body.username,
+      username: req.body.username,//will take the validation rules username and email
       email: req.body.email,
       password: hashedPassword // Plain text for now - NEEDS HASHING LATER
     });
@@ -70,11 +86,11 @@ router.post('/', async (req, res) => {
 
 // --- Placeholder for other routes ---
 // GET /api/users - Get all users (To be implemented)
-router.get('/', async (req, res) => {
+router.get('/',protect, async (req, res) => {
     try {
       // Find all documents in the 'users' collection
       // .select('-password') excludes the password field from the results
-      const users = await users.find({}).select('-password'); // Empty filter {} means find all
+      const users = await User.find({}).select('-password'); // Empty filter {} means find all
   
       res.status(200).json({ // 200 OK status
         count: users.length, // Optionally include the count
@@ -92,7 +108,7 @@ router.get('/', async (req, res) => {
 
 // GET /api/users/:id - Get a single user (To be implemented)
 // GET /api/user/:id - Get a single user by ID
-router.get('/:id', async (req, res) => {
+router.get('/:id',protect, async (req, res) => {
   try {
     const userId = req.params.id; // Get the ID from the URL parameters
 
@@ -123,10 +139,26 @@ router.get('/:id', async (req, res) => {
 
 // PATCH /api/user/:id - Update a user (partially)
 // (Replaces the previous placeholder)
-router.patch('/:id', async (req, res) => {
+router.patch('/:id',protect,[
+
+    body('username').optional().not().isEmpty().withMessage('username cannot be empty if provided').trim().escape().isLength({min:3}).withMessage('please include a valid email if provided').normalizeEmail(),
+    body('email').optional().isEmail().withMessage('please include the valid email if provided').normalizeEmail(),
+    body('password').optional().isLength({min:6}).withMessage('passsword must be atleast 6 characters if provided ')
+
+] ,async (req, res) => {
+    const errors= validationResult(req);
+    if(!errors.isEmpty()){
+        return res.status(400).json({errors:errors.array()});
+    }
     try {
         const userId = req.params.id;
         const updates = req.body; // Get the fields to update from the request body
+
+        if (updates.password){
+            const salt=await bcrypt.genSalt(10);
+            updates.password= await bcrypt.hash(updates.password,salt);
+            console.log('password being updated and hashed for PATCH request.');
+        }
 
         // Find the user by ID and update it with the provided data
         // { new: true } option returns the modified document rather than the original
@@ -173,7 +205,7 @@ router.patch('/:id', async (req, res) => {
 
 // DELETE /api/user/:id - Delete a user
 // (Replaces the previous placeholder)
-router.delete('/:id', async (req, res) => {
+router.delete('/:id',protect, async (req, res) => {
   try {
       const userId = req.params.id;
 
@@ -273,3 +305,4 @@ router.post('/login', async (req, res) => {
 // ... other CRUD routes ...
 
 module.exports = router;
+
