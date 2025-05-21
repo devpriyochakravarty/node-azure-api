@@ -12,77 +12,73 @@ const {body,validationResult}=require('express-validator');
 
 // POST /api/users - Create a new user
 // Path is '/' because '/api/users' is handled by app.use() in server.js
-router.post('/', 
-    [
-        body('username','username is required').not().isEmpty().trim().escape(),
-        body('username','username must be 3 characters').isLength({min:3}),
-        body('email','please include the valid email').isEmail().normalizeEmail(),
-        body('password','password is required').not().isEmpty(),
-        body('password','password must be atleast 6 characters').isLength({min:6})
 
+router.post('/',
+    [ // Validation rules array
+        body('username', 'username is required').not().isEmpty().trim().escape(),
+        body('username', 'username must be 3 characters').isLength({ min: 3 }),
+        body('email', 'please include the valid email').isEmail().normalizeEmail(),
+        body('password', 'password is required').not().isEmpty(),
+        body('password', 'password must be atleast 6 characters').isLength({ min: 6 })
     ],
     async (req, res) => {
- 
-  console.log('receive request to create user.body:',req.body);
-  const errors=validationResult(req);
-  if(!errors.isEmpty()){
-    return res.status(400).json({errors:errors.array()});
-  }
- /*  if (!req.body || !req.body.username || !req.body.email || !req.body.password) {
-      return res.status(400).json({ message: "Username, email, and password are required." });
-  }
- */
-  try {
-    // --- HASH THE PASSWORD ---
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(req.body.password, salt);
-    // --- END HASHING ---
- 
-    // Create a new user instance using the data from the request body
-    const newUser = new User({
-      username: req.body.username,//will take the validation rules username and email
-      email: req.body.email,
-      password: hashedPassword // Plain text for now - NEEDS HASHING LATER
-    });
+        console.log('receive request to create user.body:', req.body);
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            return res.status(400).json({ errors: errors.array() }); // RETURN here
+        }
 
-    // Save the new user to the database
-    const savedUser = await newUser.save(); // .save() handles validation based on schema
+        try {
+            const salt = await bcrypt.genSalt(10);
+            const hashedPassword = await bcrypt.hash(req.body.password, salt);
 
-    console.log("User saved successfully:", savedUser._id); // Debug log
+            const newUser = new User({
+                username: req.body.username,
+                email: req.body.email,
+                password: hashedPassword
+            });
 
-    // Send back the created user object (excluding password)
-    res.status(201).json({ // 201 Created status code
-      message: "User created successfully!",
-      user: {
-         id: savedUser._id,
-         username: savedUser.username,
-         email: savedUser.email,
-         createdAt: savedUser.createdAt,
-         updatedAt: savedUser.updatedAt
-      }
-    });
+            const savedUser = await newUser.save();
+            console.log("User saved successfully:", savedUser._id);
+            console.log("User saved successfully, about to send JSON response. User ID:", savedUser._id);
 
-  } catch (error) {
-    console.error("Error creating user:", error.message); // Log the error message
+            // --- ONLY ONE SUCCESS RESPONSE ---
+            res.status(201).json({
+                message: "User created successfully!",
+                user: {
+                    id: savedUser._id,
+                    username: savedUser.username,
+                    email: savedUser.email,
+                    createdAt: savedUser.createdAt,
+                    updatedAt: savedUser.updatedAt
+                }
+            });
+            return; // Explicitly return after sending the success response
 
-    // Handle specific errors
-    if (error.code === 11000) { // Duplicate key error
-       // Determine which field caused the duplicate error (more robust check needed for production)
-       let field = Object.keys(error.keyPattern)[0];
-       res.status(409).json({ message: `${field} already exists.` }); // 409 Conflict
-    } else if (error.name === 'ValidationError') {
-       // Extract validation messages for a cleaner response
-       let errors = {};
-       Object.keys(error.errors).forEach((key) => {
-           errors[key] = error.errors[key].message;
-       });
-       res.status(400).json({ message: "Validation Error", errors: errors }); // 400 Bad Request
-    } else {
-       // Generic server error for other issues
-       res.status(500).json({ message: "Server error creating user." }); // 500 Internal Server Error
+        } catch (error) {
+            console.error("Error creating user:", error.message);
+
+            // Check if headers have already been sent before trying to send another response
+            if (res.headersSent) {
+                console.error("Headers already sent, cannot send error response from catch block.");
+                return; // Crucial to prevent "Cannot set headers" if an error occurs AFTER res.json in try
+            }
+
+            if (error.code === 11000) {
+                let field = Object.keys(error.keyPattern)[0];
+                return res.status(409).json({ message: `${field} already exists.` });
+            } else if (error.name === 'ValidationError') {
+                let errorsObj = {};
+                Object.keys(error.errors).forEach((key) => {
+                    errorsObj[key] = error.errors[key].message;
+                });
+                return res.status(400).json({ message: "Mongoose Validation Error", errors: errorsObj });
+            } else {
+                return res.status(500).json({ message: "Server error creating user." });
+            }
+        }
     }
-  }
-});
+);
 
 // --- Placeholder for other routes ---
 // GET /api/users - Get all users (To be implemented)

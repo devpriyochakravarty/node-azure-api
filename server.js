@@ -24,10 +24,12 @@ mongoose.connect(dbURI)
 
     // It's best practice to start listening for HTTP requests *after*
     // the database connection is established.
+       if (process.env.NODE_ENV !== 'test') { 
     app.listen(port, () => {
       console.log(`Server running and listening on http://localhost:${port}`);
       // Note: Changed your log message slightly for standard format
     });
+  }
 
     app.use('/', mainRoutes);
     app.use('/api/user',userRoutes);
@@ -38,7 +40,13 @@ mongoose.connect(dbURI)
     console.error('Database connection error:', err);
     // Consider exiting if the DB is critical for startup:
     // process.exit(1);
+      if (process.env.NODE_ENV !== 'test') { // Only exit if not testing
+        process.exit(1);
+    }
   });
+
+  module.exports=app;
+  
 
 // --- NO app.listen() here anymore ---
 // --- NO app.use() here anymore (moved inside .then for clarity) ---
