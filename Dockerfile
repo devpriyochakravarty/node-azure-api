@@ -7,7 +7,7 @@ FROM node:20-alpine AS base
 # Set the working directory in the container
 WORKDIR /usr/src/app
 
-# Copy package.json and package-lock.json (or npm-shrinkwrap.json)
+# nodeCopy package.json and package-lock.json (or npm-shrinkwrap.json)
 # This step is separate to leverage Docker cache for dependencies
 COPY package*.json ./
 

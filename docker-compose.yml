@@ -1,0 +1,37 @@
+version: '3.8' # Specifies the version of the Docker Compose file format
+
+services:
+  # Your Node.js Application Service
+  app:
+    build:
+      context: . # Use the current directory as the build context
+      dockerfile: Dockerfile # Specify the Dockerfile to use
+    image: devpriyo/node-azure-api:compose-1.0.0 # Optional: Name the image built by compose
+    ports:
+      - "3000:3000" # Map host port 3000 to container port 3000
+    depends_on:
+      - mongo # Tells Compose to start the 'mongo' service before this 'app' service
+    environment:
+      # Example: If you were using environment variables for DB connection
+      # DB_URI: mongodb://mongo:27017/recipeHubDb
+      # NODE_ENV: development
+      # For now, your app connects to 127.0.0.1, which will work differently here.
+      # We'll adjust the DB_URI for Compose networking next.
+      # For now, let's keep your current DB_URI in server.js and see if it connects via default networking or needs adjustment
+      PORT: 3000 # If your app uses process.env.PORT
+    # volumes: # Optional: For live code reloading during development
+      # - .:/usr/src/app # Mount current directory to app's working directory
+      # - /usr/src/app/node_modules # Anonymous volume to prevent host node_modules overwriting container's
+    restart: unless-stopped
+
+  # MongoDB Service
+  mongo:
+    image: mongo:latest # Use the official mongo image from Docker Hub
+    ports:
+      - "27017:27017" # Map host port 27017 to container port 27017
+    volumes:
+      - mongo-data:/data/db # Persist MongoDB data using a named volume
+    restart: unless-stopped
+
+volumes:
+  mongo-data: # Defines the named volume 'mongo-data'
