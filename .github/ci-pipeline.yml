@@ -1,0 +1,36 @@
+name: Node.js CI # Name of your workflow (shows up in GitHub Actions tab)
+
+# Controls when the workflow will run
+on:
+  push: # Run on push events
+    branches: [ main ] # Specifically for pushes to the 'main' branch
+  pull_request: # Also run on pull request events
+    branches: [ main ] # Specifically for PRs targeting the 'main' branch
+
+jobs: # A workflow run is made up of one or more jobs that can run sequentially or in parallel
+  build-and-test: # Name of the job (you can choose any name)
+    runs-on: ubuntu-latest # Specifies the type of runner the job will run on (GitHub-hosted Linux runner)
+
+    strategy: # Defines a build matrix (useful for testing on multiple Node versions)
+      matrix:
+        node-version: [18.x, 20.x] # We'll test on Node.js 18 and 20
+
+    steps: # A sequence of tasks that will be executed as part of the job
+      # Step 1: Check out your repository code so the workflow can access it
+      - name: Checkout repository
+        uses: actions/checkout@v4 # Uses a pre-built action from GitHub Marketplace
+
+      # Step 2: Set up Node.js environment for each version in the matrix
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm' # Optional: Caches npm dependencies to speed up future builds
+
+      # Step 3: Install project dependencies
+      - name: Install dependencies
+        run: npm ci # 'npm ci' is recommended for CI: clean install based on package-lock.json
+
+      # Step 4: Run your tests
+      - name: Run tests
+        run: npm test # This will execute "npx jest" as defined in your package.json
