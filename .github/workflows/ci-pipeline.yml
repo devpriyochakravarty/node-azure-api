@@ -1,62 +1,50 @@
-name: Node.js CI # Name of your workflow (shows up in GitHub Actions tab)
+name: Node.js CI
 
-# Controls when the workflow will run
 on:
-  push: # Run on push events
-    branches: [ main ] # Specifically for pushes to the 'main' branch
-  pull_request: # Also run on pull request events
-    branches: [ main ] # Specifically for PRs targeting the 'main' branch
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
 
-jobs: # A workflow run is made up of one or more jobs
-  build-and-test: # Name of the job
-    runs-on: ubuntu-latest # Specifies the runner type
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
 
-    # Define services that the job needs
-    # These services run in separate containers on the same Docker network as the job's container
     services:
-      mongo: # This service name 'mongo' will be the hostname for the DB in the CI environment
-        image: mongo:latest # Use the official mongo image from Docker Hub
-        ports: # This maps ports from the service container to the Docker host (the runner)
-              # It's useful if you needed to access the DB from the runner itself,
-              # but less critical when connecting from another container (your job) on the same network
-              # using the service name. However, it doesn't hurt.
+      mongo:
+        image: mongo:latest
+        ports:
           - 27017:27017
-        # Optional health check to wait for MongoDB to be ready
-        # options: >-
-        #   --health-cmd "mongosh --eval 'db.runCommand(\"ping\").ok'"
-        #   --health-interval 10s
-        #   --health-timeout 5s
-        #   --health-retries 5
+        # Health check to wait for MongoDB to be ready
+        # The mongosh command might need adjustment if the mongo:latest image doesn't have it immediately
+        # A simpler check might be needed if this fails, e.g., checking if the port is open.
+        options: >-
+          --health-cmd "mongosh --eval 'db.adminCommand(\"ping\")' --quiet"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
-    strategy: # Defines a build matrix
+    strategy:
       matrix:
-        node-version: [18.x, 20.x] # Test on Node.js 18 and 20
+        node-version: [18.x, 20.x] # Using LTS versions
 
-    steps: # A sequence of tasks for the job
+    steps:
       - name: Checkout repository
-        uses: actions/checkout@v4 # Action to check out your code
+        uses: actions/checkout@v4
 
       - name: Use Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v4 # Action to set up Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
-          cache: 'npm' # Cache npm dependencies
+          cache: 'npm'
 
       - name: Install dependencies
-        run: npm ci # Clean install dependencies based on package-lock.json
+        run: npm ci
 
       - name: Run tests
-        run: npm test # Executes "npx jest" as defined in your package.json
-        env: # Environment variables available to the 'npm test' step
-          # This DB_URI will be used by your server.js (and thus your tests)
-          # to connect to the 'mongo' service container started above.
-          DB_URI: mongodb://mongo:27017/recipeHubDb_test_ci
-          # For CI, it's good to use a distinct database name like '_test_ci'.
-          # Ensure your server.js can pick up this DB_URI environment variable.
-
-          # If your tests or app needed a JWT secret (not usually for API tests hitting endpoints):
-          # JWT_SECRET: a-dummy-secret-for-ci-tests
-
-          # NODE_ENV is often set to 'test' by Jest automatically,
-          # but you can set it explicitly if your app/tests behave differently.
-          # NODE_ENV: test
+        run: npm test
+        env:
+          DB_URI: mongodb://mongo:27017/recipeHubDb_test_ci # Connect to the service container
+          JWT_SECRET: a-very-secure-secret-for-ci-tests # Provide a JWT secret for tests
+          NODE_ENV: test # Explicitly set NODE_ENV to test
+          PORT: 3001 # Optional: Run tests on a different port in CI if needed
