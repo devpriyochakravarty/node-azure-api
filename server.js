@@ -13,7 +13,7 @@ const port = 3000;
 app.use(express.json());
 
 // 3. Define Database Connection URI
-const dbURI = 'mongodb://mongo:27017/recipeHubDb';
+const dbURI = process.env.DB_URI || 'mongodb://mongo:27017/recipeHubDb';
 
 // --- DATABASE CONNECTION ---
 // Attempt to connect to MongoDB

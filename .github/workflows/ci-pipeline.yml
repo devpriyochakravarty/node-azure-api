@@ -7,30 +7,56 @@ on:
   pull_request: # Also run on pull request events
     branches: [ main ] # Specifically for PRs targeting the 'main' branch
 
-jobs: # A workflow run is made up of one or more jobs that can run sequentially or in parallel
-  build-and-test: # Name of the job (you can choose any name)
-    runs-on: ubuntu-latest # Specifies the type of runner the job will run on (GitHub-hosted Linux runner)
+jobs: # A workflow run is made up of one or more jobs
+  build-and-test: # Name of the job
+    runs-on: ubuntu-latest # Specifies the runner type
 
-    strategy: # Defines a build matrix (useful for testing on multiple Node versions)
+    # Define services that the job needs
+    # These services run in separate containers on the same Docker network as the job's container
+    services:
+      mongo: # This service name 'mongo' will be the hostname for the DB in the CI environment
+        image: mongo:latest # Use the official mongo image from Docker Hub
+        ports: # This maps ports from the service container to the Docker host (the runner)
+              # It's useful if you needed to access the DB from the runner itself,
+              # but less critical when connecting from another container (your job) on the same network
+              # using the service name. However, it doesn't hurt.
+          - 27017:27017
+        # Optional health check to wait for MongoDB to be ready
+        # options: >-
+        #   --health-cmd "mongosh --eval 'db.runCommand(\"ping\").ok'"
+        #   --health-interval 10s
+        #   --health-timeout 5s
+        #   --health-retries 5
+
+    strategy: # Defines a build matrix
       matrix:
-        node-version: [18.x, 20.x] # We'll test on Node.js 18 and 20
+        node-version: [18.x, 20.x] # Test on Node.js 18 and 20
 
-    steps: # A sequence of tasks that will be executed as part of the job
-      # Step 1: Check out your repository code so the workflow can access it
+    steps: # A sequence of tasks for the job
       - name: Checkout repository
-        uses: actions/checkout@v4 # Uses a pre-built action from GitHub Marketplace
+        uses: actions/checkout@v4 # Action to check out your code
 
-      # Step 2: Set up Node.js environment for each version in the matrix
       - name: Use Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v4 # Action to set up Node.js
         with:
           node-version: ${{ matrix.node-version }}
-          cache: 'npm' # Optional: Caches npm dependencies to speed up future builds
+          cache: 'npm' # Cache npm dependencies
 
-      # Step 3: Install project dependencies
       - name: Install dependencies
-        run: npm ci # 'npm ci' is recommended for CI: clean install based on package-lock.json
+        run: npm ci # Clean install dependencies based on package-lock.json
 
-      # Step 4: Run your tests
       - name: Run tests
-        run: npm test # This will execute "npx jest" as defined in your package.json
+        run: npm test # Executes "npx jest" as defined in your package.json
+        env: # Environment variables available to the 'npm test' step
+          # This DB_URI will be used by your server.js (and thus your tests)
+          # to connect to the 'mongo' service container started above.
+          DB_URI: mongodb://mongo:27017/recipeHubDb_test_ci
+          # For CI, it's good to use a distinct database name like '_test_ci'.
+          # Ensure your server.js can pick up this DB_URI environment variable.
+
+          # If your tests or app needed a JWT secret (not usually for API tests hitting endpoints):
+          # JWT_SECRET: a-dummy-secret-for-ci-tests
+
+          # NODE_ENV is often set to 'test' by Jest automatically,
+          # but you can set it explicitly if your app/tests behave differently.
+          # NODE_ENV: test
