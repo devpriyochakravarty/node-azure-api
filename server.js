@@ -3,7 +3,7 @@
 // 1. Import necessary modules
 const express = require('express');
 const mongoose = require('mongoose');
-const mainRoutes = require('./routes/mainRoutes');
+const mainRoutes = require('./routes/mainroutes');
 const userRoutes = require('./routes/userRoutes');
 
 // 2. Initialize Express app
