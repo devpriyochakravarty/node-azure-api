@@ -45,7 +45,7 @@ mongoose.connect(dbURI)
 
 // Middleware & Routes
 app.use(express.json());
-const mainRoutes = require('./routes/mainRoutes');
+const mainRoutes = require('./routes/mainroutes');
 const userRoutes = require('./routes/userRoutes');
 app.use('/', mainRoutes);
 app.use('/api/user', userRoutes);
