@@ -11,22 +11,19 @@ jobs:
     runs-on: ubuntu-latest
 
     services:
-      mongo:
+      mongo: # Service name, becomes hostname 'mongo' for other containers in this job
         image: mongo:latest
-        ports:
+        ports: # Exposes port on the runner's host network, useful for direct access if needed
           - 27017:27017
-        # Health check to wait for MongoDB to be ready
-        # The mongosh command might need adjustment if the mongo:latest image doesn't have it immediately
-        # A simpler check might be needed if this fails, e.g., checking if the port is open.
-        options: >-
-          --health-cmd "mongosh --eval 'db.adminCommand(\"ping\")' --quiet"
+        options: >- # Healthcheck to wait for MongoDB to be ready
+          --health-cmd "mongosh --eval 'db.adminCommand(\"ping\").ok' --quiet"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
 
     strategy:
       matrix:
-        node-version: [18.x, 20.x] # Using LTS versions
+        node-version: [18.x] # Let's simplify to ONE Node version for faster debugging
 
     steps:
       - name: Checkout repository
@@ -42,9 +39,10 @@ jobs:
         run: npm ci
 
       - name: Run tests
-        run: npm test
+        run: npm test # This will execute the script from package.json
         env:
-          DB_URI: mongodb://mongo:27017/recipeHubDb_test_ci # Connect to the service container
-          JWT_SECRET: a-very-secure-secret-for-ci-tests # Provide a JWT secret for tests
+          # This DB_URI is used by server.js when running in CI
+          DB_URI: mongodb://mongo:27017/recipeHubDb_test_ci
+          JWT_SECRET: a-very-secret-ci-jwt-secret # Provide a dummy secret for CI tests
           NODE_ENV: test # Explicitly set NODE_ENV to test
-          PORT: 3001 # Optional: Run tests on a different port in CI if needed
+          # PORT: 3000 # Optional, if your tests or app specifically need it

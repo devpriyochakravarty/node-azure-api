@@ -1,15 +1,13 @@
-const express=require('express');
+// routes/mainRoutes.js
+const express = require('express');
+const router = express.Router();
 
-
-const router= express.Router();
-
-router.get('/',(req,res)=>{
-    res.send("homepage served by the route handler");
+router.get('/', (req, res) => {
+  res.send('Homepage served by Express Router!');
 });
 
-router.get('/about',(req,res) =>{
-    res.send("this is the about page")
+router.get('/about', (req, res) => {
+  res.send('This is the About page.');
 });
 
-module.exports= router;
-
+module.exports = router;
