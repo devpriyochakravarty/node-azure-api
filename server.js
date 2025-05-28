@@ -1,48 +1,53 @@
 // server.js
 const express = require('express');
 const mongoose = require('mongoose');
-// ... other requires ...
 const app = express();
 const port = process.env.PORT || 3000;
 
-app.use(express.json());
-// ... mount routers ...
-// app.use('/', mainRoutes);
-// app.use('/api/user', userRoutes);
+// Determine DB_URI:
+// 1. From environment (set by CI, or by npm script for local tests)
+// 2. Fallback for local 'docker-compose up'
+// 3. Fallback for local 'node server.js' without compose (if you want to support that)
+const ci_test_db_uri = process.env.DB_URI; // This will be primary
+const local_compose_db_uri = 'mongodb://mongo:27017/recipeHubDb';
+const local_direct_db_uri = 'mongodb://127.0.0.1:27017/recipeHubDb';
 
-// Separate DB connection logic
-const connectDB = async () => {
-    // Determine URI at the time of calling connectDB
-    const uriToConnect = process.env.DB_URI || 'mongodb://mongo:27017/recipeHubDb'; // Default for Docker Compose
-    console.log(`Attempting to connect to MongoDB at: ${uriToConnect}`); // DEBUG LOG
-    try {
-        await mongoose.connect(uriToConnect);
-        console.log(`MongoDB Connected: ${uriToConnect}`);
-    } catch (err) {
-        console.error(`DB Connection Error for ${uriToConnect}:`, err.message);
-        // In test environment, we might not want to process.exit
-        if (process.env.NODE_ENV !== 'test' && process.env.NODE_ENV !== 'test_setup') {
-            process.exit(1);
-        }
-        throw err; // Re-throw for test environment to catch
+let dbURI;
+if (ci_test_db_uri) {
+    dbURI = ci_test_db_uri;
+} else {
+    // Simplistic check: if running in a test environment locally, use 127.0.0.1 for test DB
+    // This assumes npm test script sets DB_URI to 127.0.0.1.../recipeHubDb_test
+    // For regular 'node server.js' or 'docker-compose up', DB_URI won't be from test script.
+    // This part needs careful thought based on how you run locally.
+    // Let's assume for now your `npm test` script sets the DB_URI for local tests.
+    // And `docker-compose up` will not have DB_URI set, so default to `mongo` hostname.
+    dbURI = local_compose_db_uri; // Default for docker-compose
+    if (process.env.NODE_ENV === 'development_direct_node') { // Hypothetical env for direct run
+         dbURI = local_direct_db_uri;
     }
-};
-
-// Start server logic
-const startAppListening = () => {
-    if (process.env.NODE_ENV !== 'test') {
-        app.listen(port, () => {
-            console.log(`Server running and listening on http://localhost:${port}`);
-        });
-    }
-};
-
-// If run directly, connect to DB and start listening
-if (require.main === module && process.env.NODE_ENV !== 'test_setup') {
-    connectDB().then(() => {
-        startAppListening();
-    });
 }
+console.log(`Attempting to connect to MongoDB at: ${dbURI}`);
 
-// Export for testing
-module.exports = { app, connectDB, mongooseInstance: mongoose, startAppListening };
+
+// --- Database Connection ---
+mongoose.connect(dbURI)
+  .then(() => {
+    console.log(`MongoDB Connected: ${dbURI}`);
+    if (process.env.NODE_ENV !== 'test' && require.main === module) { // Only listen if run directly and not in test
+      app.listen(port, () => console.log(`Server listening on port ${port}`));
+    }
+  })
+  .catch(err => {
+    console.error(`DB Connection Error for ${dbURI}:`, err.message);
+    if (process.env.NODE_ENV !== 'test' && require.main === module) process.exit(1);
+  });
+
+// Middleware & Routes
+app.use(express.json());
+const mainRoutes = require('./routes/mainRoutes');
+const userRoutes = require('./routes/userRoutes');
+app.use('/', mainRoutes);
+app.use('/api/user', userRoutes);
+
+module.exports = app;

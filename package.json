@@ -3,9 +3,8 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "start": "node server.js",
-    "test": "npx jest"
-  },
+  "test": "DB_URI=mongodb://127.0.0.1:27017/recipeHubDb_test JWT_SECRET=testsecret npx jest --runInBand"
+},
   "keywords": [],
   "author": "",
   "license": "ISC",
