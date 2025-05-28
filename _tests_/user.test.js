@@ -1,7 +1,7 @@
 // __tests__/user.test.js
 const request = require('supertest');
 const { app, connectDB, mongooseInstance, startAppListening } = require('../server'); // Import what's needed
-const User = require('../models/User');
+const User = require('../models/user');
 const bcrypt = require('bcryptjs');
 
 const testDbURILocal = 'mongodb://127.0.0.1:27017/recipeHubDb_test';
