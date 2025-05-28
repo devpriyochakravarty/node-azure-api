@@ -50,7 +50,7 @@ app.use(express.json());
 
 // Routes - Ensure casing matches your actual file/folder names
 const mainRoutes = require('./routes/mainroutes');
-const userRoutes = require('./routes/userroutes');
+const userRoutes = require('./routes/userRoutes');
 
 app.use('/', mainRoutes);
 app.use('/api/user', userRoutes); // Using singular 'user' as per your successful Postman tests
