@@ -49,7 +49,7 @@ mongoose.connect(dbURI)
 app.use(express.json());
 
 // Routes - Ensure casing matches your actual file/folder names
-const mainRoutes = require('./routes/mainRoutes');
+const mainRoutes = require('./routes/mainroutes');
 const userRoutes = require('./routes/userroutes');
 
 app.use('/', mainRoutes);
