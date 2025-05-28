@@ -4,7 +4,7 @@ const router = express.Router();
 const User = require('../models/user'); // Assuming models/User.js
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const { protect } = require('../middleware/authMiddleware'); // Assuming middleware/authMiddleware.js
+const { protect } = require('../Middleware/authMiddleware'); // Assuming middleware/authMiddleware.js
 const { body, validationResult } = require('express-validator');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'a-default-local-secret-that-is-very-secure-dev1441';
