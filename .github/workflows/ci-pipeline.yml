@@ -61,6 +61,10 @@ jobs:
           # NO username, password, or creds here. It should use the ambient Azure CLI session
           # established by the previous azure/login@v1 step.
 
+      - name: Docker Login to ACR using Service Principal
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: echo "${{ secrets.AZURE_CREDENTIALS }}" | jq -r .clientSecret | docker login ${{ secrets.ACR_LOGIN_SERVER }} -u $(echo "${{ secrets.AZURE_CREDENTIALS }}" | jq -r .clientId) --password-stdin
+
       - name: Build and tag Docker image
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
