@@ -39,32 +39,31 @@ jobs:
           JWT_SECRET: a-very-secret-key-for-ci
           NODE_ENV: test
       
-      - name: Azure Login
+      # Optional: Keep azure/login@v1 if you plan to run other 'az' cli commands later in the workflow.
+      # If its ONLY purpose was to help docker login, and the manual docker login works,
+      # you might not even need this azure/login@v1 step. For now, let's keep it.
+      - name: Azure Login (for general Azure CLI context, if needed later)
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: azure/login@v1
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
-          # enable-AzPSSession: true # Not strictly needed for docker login but good for PS scripts
-          # The following is often helpful to ensure Docker gets Azure context
-          # It ensures that the token acquired can be used by Docker login
-          enable-AzPSSession: false # Set to false if not using PowerShell specific scripts after
-          # The key might be that the azure/login itself configures docker if ACR is in the same tenant.
-          # Let's ensure service principal has AcrPull/AcrPush on the ACR. (You did this with AcrPush).
 
-      # The azure/docker-login action is designed to work after azure/login.
-      # It should automatically use the logged-in Azure identity to get an ACR token.
-      - name: Log in to Azure Container Registry
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: azure/docker-login@v2 # Use v2 as it's the latest
-        with:
-          login-server: ${{ secrets.ACR_LOGIN_SERVER }}
-          # NO username, password, or creds here. It should use the ambient Azure CLI session
-          # established by the previous azure/login@v1 step.
+      # REMOVE or COMMENT OUT the problematic azure/docker-login@v2 step:
+      # - name: Log in to Azure Container Registry 
+      #   if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      #   uses: azure/docker-login@v2
+      #   with:
+      #     login-server: ${{ secrets.ACR_LOGIN_SERVER }}
 
+      # USE THIS EXPLICIT DOCKER LOGIN INSTEAD:
       - name: Docker Login to ACR using Service Principal
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: echo "${{ secrets.AZURE_CREDENTIALS }}" | jq -r .clientSecret | docker login ${{ secrets.ACR_LOGIN_SERVER }} -u $(echo "${{ secrets.AZURE_CREDENTIALS }}" | jq -r .clientId) --password-stdin
-
+        run: |
+          CLIENT_ID=$(echo '${{ secrets.AZURE_CREDENTIALS }}' | jq -r .clientId)
+          CLIENT_SECRET=$(echo '${{ secrets.AZURE_CREDENTIALS }}' | jq -r .clientSecret)
+          echo "$CLIENT_SECRET" | docker login ${{ secrets.ACR_LOGIN_SERVER }} -u "$CLIENT_ID" --password-stdin
+          echo "Docker login to ACR successful"
+      
       - name: Build and tag Docker image
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
