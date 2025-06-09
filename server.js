@@ -55,4 +55,4 @@ const userRoutes = require('./routes/userRoutes');
 app.use('/', mainRoutes);
 app.use('/api/user', userRoutes); // Using singular 'user' as per your successful Postman tests
 
-module.exports = app; // Export app for supertest
+module.exports = app; // Export app for supertest ,just making an optional comment for azure ad principal to work 
