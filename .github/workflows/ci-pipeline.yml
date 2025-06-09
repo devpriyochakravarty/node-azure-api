@@ -41,20 +41,25 @@ jobs:
       
       - name: Azure Login
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: azure/login@v1 # Use v1 as it's widely used and stable
+        uses: azure/login@v1
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
-          # enable-AzPSSession: true # Might be useful for some PS scripts later, not strictly for docker login
+          # enable-AzPSSession: true # Not strictly needed for docker login but good for PS scripts
+          # The following is often helpful to ensure Docker gets Azure context
+          # It ensures that the token acquired can be used by Docker login
+          enable-AzPSSession: false # Set to false if not using PowerShell specific scripts after
+          # The key might be that the azure/login itself configures docker if ACR is in the same tenant.
+          # Let's ensure service principal has AcrPull/AcrPush on the ACR. (You did this with AcrPush).
 
+      # The azure/docker-login action is designed to work after azure/login.
+      # It should automatically use the logged-in Azure identity to get an ACR token.
       - name: Log in to Azure Container Registry
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: azure/docker-login@v2 # Use v2
+        uses: azure/docker-login@v2 # Use v2 as it's the latest
         with:
           login-server: ${{ secrets.ACR_LOGIN_SERVER }}
-          # NO explicit credentials here. This action should now use the Azure session
-          # established by the 'Azure Login' step above.
-          # If this still fails, we might need to ensure the SP used by azure/login@v1
-          # has an explicit "AcrPush" role assignment on the ACR. (It should already from our SP creation).
+          # NO username, password, or creds here. It should use the ambient Azure CLI session
+          # established by the previous azure/login@v1 step.
 
       - name: Build and tag Docker image
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
