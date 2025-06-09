@@ -1,48 +1,70 @@
-name: Node.js CI
+name: Node.js CI, Build, and Push to ACR
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
   pull_request:
-    branches: [ main ]
+    branches:
+      - main
 
 jobs:
-  build-and-test:
+  build-test-and-publish-image:
     runs-on: ubuntu-latest
-
+    
     services:
-      mongo: # Service name, becomes hostname 'mongo' for other containers in this job
+      mongo:
         image: mongo:latest
-        ports: # Exposes port on the runner's host network, useful for direct access if needed
+        ports:
           - 27017:27017
-        options: >- # Healthcheck to wait for MongoDB to be ready
-          --health-cmd "mongosh --eval 'db.adminCommand(\"ping\").ok' --quiet"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
+        options: --health-cmd "mongosh --eval 'db.adminCommand(\"ping\").ok' --quiet"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+    
     strategy:
       matrix:
-        node-version: [18.x] # Let's simplify to ONE Node version for faster debugging
-
+        node-version:
+          - 20.x
+    
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
+      
       - name: Use Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
-          cache: 'npm'
-
+          cache: npm
+      
       - name: Install dependencies
         run: npm ci
-
+      
       - name: Run tests
-        run: npm test # This will execute the script from package.json
+        run: npm test
         env:
-          # This DB_URI is used by server.js when running in CI
-          DB_URI: mongodb://mongo:27017/recipeHubDb_test_ci
-          JWT_SECRET: a-very-secret-ci-jwt-secret # Provide a dummy secret for CI tests
-          NODE_ENV: test # Explicitly set NODE_ENV to test
-          # PORT: 3000 # Optional, if your tests or app specifically need it
+          JWT_SECRET: a-very-secret-key-for-ci
+          NODE_ENV: test
+      
+      - name: Azure Login
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+      
+      - name: Log in to Azure Container Registry
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: azure/docker-login@v2
+        with:
+          login-server: ${{ secrets.ACR_LOGIN_SERVER }}
+      
+      - name: Build and tag Docker image
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          docker build -t ${{ secrets.ACR_LOGIN_SERVER }}/node-azure-api:${{ github.sha }} -t ${{ secrets.ACR_LOGIN_SERVER }}/node-azure-api:latest .
+          echo "Image tagged with SHA: ${{ secrets.ACR_LOGIN_SERVER }}/node-azure-api:${{ github.sha }}"
+          echo "Image tagged with latest: ${{ secrets.ACR_LOGIN_SERVER }}/node-azure-api:latest"
+      
+      - name: Push Docker image to ACR
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          docker push ${{ secrets.ACR_LOGIN_SERVER }}/node-azure-api:${{ github.sha }}
+          docker push ${{ secrets.ACR_LOGIN_SERVER }}/node-azure-api:latest
