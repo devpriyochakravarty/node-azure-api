@@ -1,1 +1,12 @@
 node_modules/
+# ... other ignores ...
+
+# Terraform state files
+*.tfstate
+*.tfstate.*
+.terraform/
+# .terraform.lock.hcl should usually be committed
+# ... your existing ignores (node_modules, *.tfstate, .terraform/) ...
+
+# Ignore SSH private key files
+*.pem
