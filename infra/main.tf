@@ -62,6 +62,45 @@ resource "azurerm_public_ip" "pip" {
     project     = "node-azure-api-terraform"
   }
 }
+# --- Define a Network Security Group (NSG) ---
+resource "azurerm_network_security_group" "nsg" {
+  name                = "node-api-vm-nsg-tf"              # Name of the NSG in Azure
+  location            = azurerm_resource_group.rg.location  # Same location as RG
+  resource_group_name = azurerm_resource_group.rg.name    # Same RG
+
+  # Inbound rule for SSH
+  security_rule {
+    name                       = "AllowSSH"
+    priority                   = 100  # Lower numbers have higher priority
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"     # Any source port
+    destination_port_range     = "22"    # Destination port 22 (SSH)
+    source_address_prefix      = "Internet" # Allow from any internet IP (can be restricted)
+    destination_address_prefix = "*"     # To any IP within the associated resource
+  }
+
+  # Inbound rule for our Node.js Application (port 3000)
+  security_rule {
+    name                       = "AllowNodeAppPort3000"
+    priority                   = 110 # Must be different from other rules
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_range     = "3000"  # Your application's port
+    source_address_prefix      = "Internet"
+    destination_address_prefix = "*"
+  }
+
+  # You can also add outbound rules if needed, but default outbound is usually AllowAny.
+
+  tags = {
+    environment = "learning"
+    project     = "node-azure-api-terraform"
+  }
+}
 
 # --- Outputs ---
 output "resource_group_name" {
