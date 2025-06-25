@@ -1,27 +1,23 @@
 # main.tf
 
 # Configure the Azure Provider
-# This tells Terraform we want to interact with Azure
 terraform {
   required_providers {
     azurerm = {
       source  = "hashicorp/azurerm"
-      version = "~> 3.0" # Specify a version constraint for the Azure provider
+      version = "~> 3.0"
     }
   }
 }
 
-# Configure the Azure provider with details
-# Terraform will use your Azure CLI login session by default
 provider "azurerm" {
-  features {} # Empty features block is often sufficient to start
+  features {}
 }
 
 # --- Define an Azure Resource Group ---
 resource "azurerm_resource_group" "rg" {
-  name     = "node-azure-api-rg-tf"       # Actual name of the RG in Azure
-  location = "centralindia"               # Azure region
-
+  name     = "node-azure-api-rg-tf"
+  location = "centralindia"
   tags = {
     environment = "learning"
     project     = "node-azure-api-terraform"
@@ -30,11 +26,10 @@ resource "azurerm_resource_group" "rg" {
 
 # --- Define a Virtual Network (VNet) ---
 resource "azurerm_virtual_network" "vnet" {
-  name                = "node-api-vnet-tf"                  # Name of the VNet in Azure
-  address_space       = ["10.0.0.0/16"]                     # Overall IP address range for the VNet
-  location            = azurerm_resource_group.rg.location  # Use the same location as the resource group
-  resource_group_name = azurerm_resource_group.rg.name    # Place it in our existing RG (references the RG above)
-
+  name                = "node-api-vnet-tf"
+  address_space       = ["10.0.0.0/16"]
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
   tags = {
     environment = "learning"
     project     = "node-azure-api-terraform"
@@ -43,58 +38,119 @@ resource "azurerm_virtual_network" "vnet" {
 
 # --- Define a Subnet within the VNet ---
 resource "azurerm_subnet" "subnet" {
-  name                 = "node-api-subnet-tf"                # Name of the subnet in Azure
-  resource_group_name  = azurerm_resource_group.rg.name    # Same RG
-  virtual_network_name = azurerm_virtual_network.vnet.name # Link to the VNet created above
-  address_prefixes     = ["10.0.1.0/24"]                     # IP address range for this subnet (must be within VNet's range)
+  name                 = "node-api-subnet-tf"
+  resource_group_name  = azurerm_resource_group.rg.name
+  virtual_network_name = azurerm_virtual_network.vnet.name
+  address_prefixes     = ["10.0.1.0/24"]
 }
 
 # --- Define a Public IP Address for the VM ---
 resource "azurerm_public_ip" "pip" {
-  name                = "node-api-vm-pip-tf"              # Name of the Public IP resource in Azure
-  location            = azurerm_resource_group.rg.location  # Same location
-  resource_group_name = azurerm_resource_group.rg.name    # Same RG
-  allocation_method   = "Dynamic"                           # Can be "Static" or "Dynamic"
-  sku                 = "Basic"                             # SKU for the Public IP
+  name                = "node-api-vm-pip-tf"
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+  allocation_method   = "Dynamic"
+  sku                 = "Basic"
+  tags = {
+    environment = "learning"
+    project     = "node-azure-api-terraform"
+  }
+}
+
+# --- Define a Network Security Group (NSG) ---
+resource "azurerm_network_security_group" "nsg" {
+  name                = "node-api-vm-nsg-tf"
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+
+  security_rule {
+    name                       = "AllowSSH"
+    priority                   = 100
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_range     = "22"
+    source_address_prefix      = "Internet"
+    destination_address_prefix = "*"
+  }
+
+  security_rule {
+    name                       = "AllowNodeAppPort3000"
+    priority                   = 110
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_range     = "3000"
+    source_address_prefix      = "Internet"
+    destination_address_prefix = "*"
+  }
+  tags = {
+    environment = "learning"
+    project     = "node-azure-api-terraform"
+  }
+}
+
+# --- Define a Network Interface (NIC) for the VM ---
+resource "azurerm_network_interface" "nic" {
+  name                = "node-api-vm-nic-tf"
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+
+  ip_configuration {
+    name                          = "internal"
+    subnet_id                     = azurerm_subnet.subnet.id 
+    private_ip_address_allocation = "Dynamic"
+    public_ip_address_id          = azurerm_public_ip.pip.id
+  }
+
+  # CORRECTED: Associate the Network Security Group with this NIC
+  
 
   tags = {
     environment = "learning"
     project     = "node-azure-api-terraform"
   }
 }
-# --- Define a Network Security Group (NSG) ---
-resource "azurerm_network_security_group" "nsg" {
-  name                = "node-api-vm-nsg-tf"              # Name of the NSG in Azure
-  location            = azurerm_resource_group.rg.location  # Same location as RG
-  resource_group_name = azurerm_resource_group.rg.name    # Same RG
 
-  # Inbound rule for SSH
-  security_rule {
-    name                       = "AllowSSH"
-    priority                   = 100  # Lower numbers have higher priority
-    direction                  = "Inbound"
-    access                     = "Allow"
-    protocol                   = "Tcp"
-    source_port_range          = "*"     # Any source port
-    destination_port_range     = "22"    # Destination port 22 (SSH)
-    source_address_prefix      = "Internet" # Allow from any internet IP (can be restricted)
-    destination_address_prefix = "*"     # To any IP within the associated resource
+# --- Define the Linux Virtual Machine ---
+resource "azurerm_linux_virtual_machine" "vm" {
+  name                  = "node-api-vm-tf" # Name of the VM in Azure
+  computer_name         = "nodeapivm"      # Hostname for the VM (shorter, no hyphens usually)
+  resource_group_name   = azurerm_resource_group.rg.name
+  location              = azurerm_resource_group.rg.location
+  size                  = "Standard_B1s"   # Same size as your manual VM
+  admin_username        = "azureuser"      # Your admin username
+
+  # Associate the NIC we created earlier
+  network_interface_ids = [
+    azurerm_network_interface.nic.id,
+  ]
+
+  # Configure SSH key authentication
+  admin_ssh_key {
+    username   = "azureuser"
+    public_key = file("~/.ssh/node-api-vm-tf_key.pub") # Path to your SSH public key file
+                                                       # Or use file("${path.module}/node-api-vm-tf_key.pub")
+                                                       # if key is in the same 'infra' folder
   }
 
-  # Inbound rule for our Node.js Application (port 3000)
-  security_rule {
-    name                       = "AllowNodeAppPort3000"
-    priority                   = 110 # Must be different from other rules
-    direction                  = "Inbound"
-    access                     = "Allow"
-    protocol                   = "Tcp"
-    source_port_range          = "*"
-    destination_port_range     = "3000"  # Your application's port
-    source_address_prefix      = "Internet"
-    destination_address_prefix = "*"
+  # Define the OS disk
+  os_disk {
+    caching              = "ReadWrite"
+    storage_account_type = "Standard_LRS" # Or "Premium_LRS" if desired/available for B1s
+                                          # Standard_LRS is usually fine for Basic VMs
   }
 
-  # You can also add outbound rules if needed, but default outbound is usually AllowAny.
+  # Specify the OS image
+  source_image_reference {
+    publisher = "Canonical"
+    offer     = "0001-com-ubuntu-server-jammy" # For Ubuntu 22.04 LTS
+    # For Ubuntu 20.04 LTS, it might be "UbuntuServer" for offer and "20_04-LTS" for sku
+    sku       = "22_04-lts-gen2" # Or "22_04-LTS" depending on exact image name
+    version   = "latest"
+  }
 
   tags = {
     environment = "learning"
@@ -126,4 +182,17 @@ output "public_ip_address_id" {
 output "public_ip_address" {
   description = "The actual Public IP address allocated (known after apply if dynamic)."
   value       = azurerm_public_ip.pip.ip_address
+}
+
+output "vm_public_ip_address" {
+  description = "The Public IP address of the VM."
+  value       = azurerm_linux_virtual_machine.vm.public_ip_address 
+  # Or if you want it from the PIP resource directly, it might be available after association:
+  # value = azurerm_public_ip.pip.ip_address 
+  # The VM resource itself often exposes the primary public IP.
+}
+
+output "vm_id" {
+  description = "The ID of the created Virtual Machine."
+  value = azurerm_linux_virtual_machine.vm.id
 }
