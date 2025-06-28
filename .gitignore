@@ -5,6 +5,7 @@ node_modules/
 *.tfstate
 *.tfstate.*
 .terraform/
+*.tfvars
 # .terraform.lock.hcl should usually be committed
 # ... your existing ignores (node_modules, *.tfstate, .terraform/) ...
 
