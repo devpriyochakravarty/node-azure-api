@@ -168,6 +168,8 @@ resource "azurerm_container_registry" "acr" {
   }
 }
 
+# main.tf
+
 # --- Run Setup Script on VM using Custom Script Extension ---
 resource "azurerm_virtual_machine_extension" "app_setup_script" {
   name                 = "app-setup"
@@ -176,20 +178,31 @@ resource "azurerm_virtual_machine_extension" "app_setup_script" {
   type                 = "CustomScript"
   type_handler_version = "2.0"
 
-  # Settings are passed in clear text (e.g., non-sensitive config)
-  # We are not using this block for this setup.
+  # We use 'protected_settings' to pass sensitive variables to our script template.
+  # The 'templatefile' function reads our script, injects the variables,
+  # and 'jsonencode' ensures it's a valid JSON structure.
+  protected_settings = jsonencode({
+    "script" = base64encode(templatefile("${path.module}/setup_vm.sh", {
+      # These are the variables we are passing into the setup_vm.sh template
+      acr_login_server = azurerm_container_registry.acr.login_server
+      acr_username     = azurerm_container_registry.acr.name
+      acr_password     = azurerm_container_registry.acr.admin_password
+      jwt_secret       = var.jwt_secret
+      db_name          = var.db_name
+    }))
+  })
 
-  # Protected settings are encrypted before being sent to the VM
-  # This is the correct place for secrets like passwords.
-  protected_settings = <<SETTINGS
-    {
-        "script": "${base64encode(file("${path.module}/setup_vm.sh"))}",
-        "commandToExecute": "bash setup_vm.sh '${azurerm_container_registry.acr.login_server}' '${azurerm_container_registry.acr.name}' '${azurerm_container_registry.acr.admin_password}' '${var.jwt_secret}' '${var.db_name}'"
-    }
+  # This extension resource must be created after the VM it attaches to is ready.
+  # It also needs the ACR to be ready to get its credentials.
+  depends_on = [
+    azurerm_linux_virtual_machine.vm,
+    azurerm_container_registry.acr
+  ]
 
-SETTINGS
- # This extension resource implicitly depends on the VM being ready.
-  depends_on = [azurerm_container_registry.acr]
+  tags = {
+    environment = "learning"
+    project     = "node-azure-api"
+  }
 }
 
 # --- Outputs for VM Infrastructure ---
