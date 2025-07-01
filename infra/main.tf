@@ -1,9 +1,9 @@
-# main.tf - TARGET CONFIGURATION
+# main.tf - Final Corrected Version for Automated VM Deployment
 
 variable "jwt_secret" {
   description = "The secret key for signing JWTs."
   type        = string
-  sensitive   = true # Marks this variable as sensitive
+  sensitive   = true
 }
 
 variable "db_name" {
@@ -11,7 +11,6 @@ variable "db_name" {
   type        = string
   default     = "recipeHubDbOnTerraformVM"
 }
-
 
 # 1. Configure Providers
 terraform {
@@ -28,11 +27,7 @@ terraform {
 }
 
 provider "azurerm" {
-  features  {
-    resource_group {
-      prevent_deletion_if_contains_resources = false
-    }
-  }
+  features {}
 }
 
 # 2. Define Azure Resource Group
@@ -42,7 +37,7 @@ resource "azurerm_resource_group" "rg" {
   tags     = { environment = "learning", project = "node-azure-api" }
 }
 
-# 3. Define Networking Resources using the clear '_vm' local names
+# 3. Define Networking Resources
 resource "azurerm_virtual_network" "vnet_vm" {
   name                = "node-api-vnet-tf"
   address_space       = ["10.0.0.0/16"]
@@ -71,7 +66,6 @@ resource "azurerm_network_security_group" "nsg_vm" {
   name                = "node-api-vm-nsg-tf"
   location            = azurerm_resource_group.rg.location
   resource_group_name = azurerm_resource_group.rg.name
-  # Security rules for SSH and App port
   security_rule {
     name                       = "AllowSSH"
     priority                   = 100
@@ -101,7 +95,6 @@ resource "azurerm_network_interface" "nic_vm" {
   name                = "node-api-vm-nic-tf"
   location            = azurerm_resource_group.rg.location
   resource_group_name = azurerm_resource_group.rg.name
-
   ip_configuration {
     name                          = "internal"
     subnet_id                     = azurerm_subnet.subnet_vm.id
@@ -111,7 +104,6 @@ resource "azurerm_network_interface" "nic_vm" {
   tags = { environment = "learning", project = "node-azure-api" }
 }
 
-# Explicitly associate the NSG with the NIC
 resource "azurerm_network_interface_security_group_association" "nic_vm_nsg_assoc" {
   network_interface_id      = azurerm_network_interface.nic_vm.id
   network_security_group_id = azurerm_network_security_group.nsg_vm.id
@@ -137,17 +129,14 @@ resource "azurerm_linux_virtual_machine" "vm" {
   size                  = "Standard_B1s"
   admin_username        = "azureuser"
   network_interface_ids = [azurerm_network_interface.nic_vm.id]
-
   admin_ssh_key {
     username   = "azureuser"
     public_key = tls_private_key.vm_ssh_key.public_key_openssh
   }
-
   os_disk {
     caching              = "ReadWrite"
     storage_account_type = "Standard_LRS"
   }
-
   source_image_reference {
     publisher = "Canonical"
     offer     = "0001-com-ubuntu-server-jammy"
@@ -155,11 +144,9 @@ resource "azurerm_linux_virtual_machine" "vm" {
     version   = "latest"
   }
   tags = { environment = "learning", project = "node-azure-api" }
-
 }
 
-# --- Define Azure Container Registry (ACR) to be managed by Terraform ---
-# This will be used by the setup script to log in and pull images.
+# 5. Define Azure Container Registry (ACR) to be managed by Terraform
 resource "azurerm_container_registry" "acr" {
   name                = "devpriyoacr939" # Your unique ACR name that already exists
   resource_group_name = azurerm_resource_group.rg.name
@@ -172,8 +159,6 @@ resource "azurerm_container_registry" "acr" {
   }
 }
 
-# main.tf
-
 # --- Run Setup Script on VM using Custom Script Extension ---
 resource "azurerm_virtual_machine_extension" "app_setup_script" {
   name                 = "app-setup"
@@ -182,9 +167,10 @@ resource "azurerm_virtual_machine_extension" "app_setup_script" {
   type                 = "CustomScript"
   type_handler_version = "2.0"
 
-  # We use 'protected_settings' to pass sensitive variables to our script template.
-  # The 'templatefile' function reads our script, injects the variables,
-  # and 'jsonencode' ensures it's a valid JSON structure.
+  # 'protected_settings' contains the script itself. The 'templatefile' function
+  # will replace the variables (e.g., ${acr_login_server}) with their actual values.
+  # The resulting script is then base64 encoded and sent to the VM.
+  # The extension automatically runs this script. No 'commandToExecute' is needed.
   protected_settings = jsonencode({
     "script" = base64encode(templatefile("${path.module}/setup_vm.sh", {
       # These are the variables we are passing into the setup_vm.sh template
@@ -196,8 +182,6 @@ resource "azurerm_virtual_machine_extension" "app_setup_script" {
     }))
   })
 
-  # This extension resource must be created after the VM it attaches to is ready.
-  # It also needs the ACR to be ready to get its credentials.
   depends_on = [
     azurerm_linux_virtual_machine.vm,
     azurerm_container_registry.acr
