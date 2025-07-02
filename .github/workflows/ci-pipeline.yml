@@ -76,3 +76,37 @@ jobs:
         run: |
           docker push ${{ secrets.ACR_LOGIN_SERVER }}/node-azure-api:${{ github.sha }}
           docker push ${{ secrets.ACR_LOGIN_SERVER }}/node-azure-api:latest
+
+         # In .github/workflows/ci-pipeline.yml
+
+# ... (your existing build-test-and-publish-image job is above this)
+
+  deploy-to-vm:
+    name: Deploy to Azure VM
+    # This job will only run if the build-and-test job completes successfully
+    needs: build-test-and-publish-image 
+    # Only run this deployment job on a push to the main branch
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Terraform
+        uses: hashicorp/setup-terraform@v2
+        # with:
+        #   terraform_version: "1.1.2" # Optional: pin to a specific version
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Terraform Init
+        run: terraform init
+        working-directory: ./infra # Run commands in the 'infra' subfolder
+
+      - name: Terraform Apply
+        run: terraform apply -auto-approve -var="jwt_secret=${{ secrets.JWT_SECRET_FOR_TF }}"
+        working-directory: ./infra
