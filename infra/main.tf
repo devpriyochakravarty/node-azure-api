@@ -14,6 +14,13 @@ variable "db_name" {
 
 # 1. Configure Providers
 terraform {
+  backend "azurerm" {
+    resource_group_name  = "node-azure-api-rg-tf"
+    storage_account_name = "tfstatedevpriyo1893" # Use the name from the powershell command above
+    container_name       = "tfstate"
+    key                  = "prod.terraform.tfstate" # The name of the state file in the blob container
+  }
+
   required_providers {
     azurerm = {
       source  = "hashicorp/azurerm"
